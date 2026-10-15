@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Family Expenses</title>
+  <meta name="theme-color" content="#0f766e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Expenses">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230f766e'/%3E%3Ctext x='50' y='70' font-size='60' text-anchor='middle' fill='white' font-family='sans-serif'%3E₹%3C/text%3E%3C/svg%3E">
+
+  <!-- Supabase's official helper library: lets this page talk to your database -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    /* ---------- Colours: light ---------- */
+    :root {
+      --bg: #f6f5f1;
+      --surface: #ffffff;
+      --surface-2: #efede7;
+      --text: #1c1b18;
+      --muted: #6b675f;
+      --line: #e3e0d8;
+      --accent: #0f766e;
+      --accent-text: #ffffff;
+      --accent-soft: #dff2ee;
+      --danger: #b42318;
+      --danger-soft: #fde8e6;
+      --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.05);
+    }
+    /* ---------- Colours: dark (follows phone/computer setting) ---------- */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121210;
+        --surface: #1c1b18;
+        --surface-2: #26251f;
+        --text: #f1efe9;
+        --muted: #a39f95;
+        --line: #33312b;
+        --accent: #2dd4bf;
+        --accent-text: #052421;
+        --accent-soft: #10302c;
+        --danger: #f87171;
+        --danger-soft: #3a1714;
+        --shadow: none;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px; line-height: 1.45;
+      min-height: 100vh;
+    }
+    button, input, select { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    .hidden { display: none !important; }
+    .wrap { max-width: 560px; margin: 0 auto; padding: 0 16px; }
+
+    /* ---------- Buttons ---------- */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border: 1px solid var(--line); background: var(--surface);
+      border-radius: 12px; padding: 10px 16px; font-weight: 600;
+    }
+    .btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+    .btn.danger { color: var(--danger); border-color: var(--danger); background: transparent; }
+    .btn.block { width: 100%; padding: 14px; font-size: 1.05rem; }
+    .btn.small { padding: 6px 12px; font-size: .88rem; border-radius: 10px; }
+    .btn:disabled { opacity: .55; cursor: default; }
+    .btn:focus-visible, input:focus-visible, select:focus-visible, .chip input:focus-visible + span, .seg-opt input:focus-visible + span {
+      outline: 3px solid var(--accent); outline-offset: 2px;
+    }
+    .link { background: none; border: none; color: var(--accent); font-weight: 600; padding: 4px; }
+
+    /* ---------- Forms ---------- */
+    .field { margin-bottom: 18px; }
+    .field > label, .label { display: block; font-size: .85rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+    .opt { font-weight: 400; }
+    input[type=text], input[type=email], input[type=password], input[type=date] {
+      width: 100%; padding: 12px 14px; border-radius: 12px;
+      border: 1px solid var(--line); background: var(--surface);
+      font-size: 16px; /* 16px stops phones from zooming in */
+    }
+    input[type=date] { min-height: 48px; }
+    .amount-wrap {
+      display: flex; align-items: center; gap: 6px;
+      border: 1px solid var(--line); background: var(--surface);
+      border-radius: 14px; padding: 6px 16px;
+    }
+    .amount-wrap span { font-size: 1.8rem; color: var(--muted); }
+    .amount-wrap input { border: none; background: transparent; font-size: 2rem; font-weight: 700; padding: 6px 0; }
+    .amount-wrap input:focus-visible { outline: none; }
+    .amount-wrap:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip input, .seg-opt input { position: absolute; opacity: 0; pointer-events: none; }
+    .chip span {
+      display: inline-block; padding: 8px 14px; border-radius: 999px;
+      border: 1px solid var(--line); background: var(--surface); font-size: .92rem;
+    }
+    .chip input:checked + span { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+
+    .seg { display: flex; gap: 6px; background: var(--surface-2); padding: 4px; border-radius: 12px; }
+    .seg-opt { flex: 1; }
+    .seg-opt span {
+      display: block; text-align: center; padding: 8px 4px; border-radius: 9px;
+      font-size: .9rem; font-weight: 500; color: var(--muted);
+    }
+    .seg-opt input:checked + span { background: var(--surface); color: var(--text); box-shadow: var(--shadow); font-weight: 600; }
+
+    /* ---------- Login ---------- */
+    #login-view { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
+    .login-card { width: 100%; max-width: 380px; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 28px 22px; box-shadow: var(--shadow); }
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .brand-mark { width: 36px; height: 36px; border-radius: 10px; background: var(--accent); color: var(--accent-text); display: grid; place-items: center; font-weight: 700; }
+    .login-card h1 { font-size: 1.4rem; }
+    .login-card p.sub { color: var(--muted); margin-bottom: 22px; font-size: .95rem; }
+    .error { color: var(--danger); background: var(--danger-soft); padding: 10px 12px; border-radius: 10px; font-size: .9rem; margin-bottom: 14px; }
+
+    /* ---------- App shell ---------- */
+    header.top {
+      position: sticky; top: 0; z-index: 5;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--line);
+      padding-top: env(safe-area-inset-top);
+    }
+    header.top .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    header.top h2 { font-size: 1.15rem; }
+    .who { color: var(--muted); font-size: .88rem; }
+    main { padding: 20px 0 calc(96px + env(safe-area-inset-bottom)); }
+    section.tab h3 { font-size: 1.05rem; margin: 26px 0 10px; }
+    section.tab h3:first-child { margin-top: 0; }
+
+    nav.bottom {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 5;
+      background: var(--surface); border-top: 1px solid var(--line);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    nav.bottom .wrap { display: flex; }
+    nav.bottom button {
+      flex: 1; background: none; border: none; padding: 8px 0 10px;
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      color: var(--muted); font-size: .75rem; font-weight: 600;
+    }
+    nav.bottom svg { width: 24px; height: 24px; }
+    nav.bottom button.active { color: var(--accent); }
+
+    /* ---------- Cards & lists ---------- */
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+    .card.pad { padding: 16px; }
+    .day-head { display: flex; justify-content: space-between; font-size: .85rem; font-weight: 600; color: var(--muted); margin: 18px 4px 8px; }
+    .day-head:first-child { margin-top: 0; }
+    .list { overflow: hidden; }
+    .item {
+      width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 12px 16px; background: none; border: none; border-top: 1px solid var(--line); text-align: left;
+    }
+    .item:first-child { border-top: none; }
+    .item:hover { background: var(--surface-2); }
+    .item-main { min-width: 0; display: flex; flex-direction: column; }
+    .item-cat { font-weight: 600; }
+    .item-meta { color: var(--muted); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item-amt { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .empty { text-align: center; color: var(--muted); padding: 40px 16px; }
+    .center { text-align: center; margin-top: 16px; }
+
+    /* ---------- Reports ---------- */
+    .presets { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 12px; }
+    .presets .btn { white-space: nowrap; }
+    .presets .btn.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+    .range { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .range .field { margin-bottom: 0; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+    .stat { padding: 14px 16px; }
+    .stat .k { color: var(--muted); font-size: .8rem; font-weight: 600; }
+    .stat .v { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat.big { grid-column: 1 / -1; }
+    .stat.big .v { font-size: 2rem; color: var(--accent); }
+    .bar-row { padding: 10px 16px; border-top: 1px solid var(--line); }
+    .bar-row:first-child { border-top: none; }
+    .bar-top { display: flex; justify-content: space-between; gap: 10px; font-size: .92rem; margin-bottom: 6px; }
+    .bar-top b { font-variant-numeric: tabular-nums; }
+    .bar-top .pct { color: var(--muted); font-weight: 400; margin-left: 6px; }
+    .bar { height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+    .bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+    .actions-row { display: flex; gap: 10px; margin-top: 16px; }
+    .actions-row .btn { flex: 1; }
+
+    /* ---------- Settings ---------- */
+    .cat-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px 10px 16px; border-top: 1px solid var(--line); }
+    .cat-row:first-child { border-top: none; }
+    .cat-row .btns { display: flex; gap: 6px; }
+    .inline-form { display: flex; gap: 8px; margin-top: 12px; }
+    .inline-form input { flex: 1; }
+    .note { color: var(--muted); font-size: .85rem; margin-top: 8px; }
+
+    /* ---------- Edit dialog ---------- */
+    dialog {
+      border: none; border-radius: 20px; padding: 0; width: min(520px, calc(100% - 24px));
+      max-height: calc(100vh - 40px); background: var(--bg); color: var(--text);
+      margin: auto;
+    }
+    dialog::backdrop { background: rgba(0,0,0,.45); }
+    .dlg-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 1; }
+    .dlg-body { padding: 18px; }
+    .dlg-actions { display: flex; gap: 10px; }
+    .dlg-actions .btn { flex: 1; }
+
+    /* ---------- Toast ---------- */
+    #toast {
+      position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px);
+      background: var(--text); color: var(--bg); padding: 12px 18px; border-radius: 12px;
+      font-size: .92rem; font-weight: 500; opacity: 0; pointer-events: none;
+      transition: opacity .2s, transform .2s; z-index: 50; max-width: calc(100% - 32px); text-align: center;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.err { background: var(--danger); color: #fff; }
+
+    #boot { min-height: 100vh; display: grid; place-items: center; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+  <div id="boot">Loading…</div>
+
+  <!-- ================= LOGIN ================= -->
+  <div id="login-view" class="hidden">
+    <form id="login-form" class="login-card" novalidate>
+      <div class="brand"><div class="brand-mark">₹</div><h1>Family Expenses</h1></div>
+      <p class="sub">Log in to see and add your household expenses.</p>
+      <div id="login-error" class="error hidden"></div>
+      <div class="field">
+        <label for="login-email">Email</label>
+        <input id="login-email" type="email" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="login-password">Password</label>
+        <input id="login-password" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="btn primary block" type="submit">Log in</button>
+    </form>
+  </div>
+
+  <!-- ================= APP ================= -->
+  <div id="app-view" class="hidden">
+    <header class="top">
+      <div class="wrap">
+        <h2 id="page-title">Add expense</h2>
+        <span class="who" id="who"></span>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <!-- ADD -->
+      <section class="tab" id="tab-add">
+        <form id="add-form" novalidate></form>
+      </section>
+
+      <!-- HISTORY -->
+      <section class="tab hidden" id="tab-history">
+        <div id="history-list"></div>
+        <div class="center"><button class="btn hidden" id="history-more">Load more</button></div>
+      </section>
+
+      <!-- REPORTS -->
+      <section class="tab hidden" id="tab-reports">
+        <div class="presets" id="presets">
+          <button class="btn small" data-preset="week">This week</button>
+          <button class="btn small" data-preset="month">This month</button>
+          <button class="btn small" data-preset="lastmonth">Last month</button>
+          <button class="btn small" data-preset="year">This year</button>
+        </div>
+        <div class="range">
+          <div class="field"><label for="rep-from">From</label><input type="date" id="rep-from"></div>
+          <div class="field"><label for="rep-to">To</label><input type="date" id="rep-to"></div>
+        </div>
+        <div id="report-out"></div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="tab hidden" id="tab-settings">
+        <h3>Categories</h3>
+        <div class="card list" id="cat-list"></div>
+        <form class="inline-form" id="cat-add-form" novalidate>
+          <input type="text" id="cat-new" placeholder="New category name" maxlength="40">
+          <button class="btn primary" type="submit">Add</button>
+        </form>
+        <p class="note">A category that's already used by expenses can be renamed but not deleted.</p>
+
+        <h3>Backup</h3>
+        <div class="card pad">
+          <p class="note" style="margin:0 0 12px">Download every expense as a spreadsheet file. Do this once a month and keep the file somewhere safe.</p>
+          <button class="btn block" id="backup-btn">Download all expenses (CSV)</button>
+        </div>
+
+        <h3>Change password</h3>
+        <form class="card pad" id="pw-form" novalidate>
+          <div class="field"><label for="pw-1">New password</label><input type="password" id="pw-1" autocomplete="new-password" minlength="8"></div>
+          <div class="field"><label for="pw-2">Repeat new password</label><input type="password" id="pw-2" autocomplete="new-password" minlength="8"></div>
+          <button class="btn block" type="submit">Update password</button>
+        </form>
+
+        <h3>Account</h3>
+        <div class="card pad">
+          <p class="note" style="margin:0 0 12px" id="account-line"></p>
+          <button class="btn danger block" id="logout-btn">Log out</button>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom" aria-label="Main">
+      <div class="wrap">
+        <button data-tab="add" class="active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add
+        </button>
+        <button data-tab="history">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>History
+        </button>
+        <button data-tab="reports">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Reports
+        </button>
+        <button data-tab="settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings
+        </button>
+      </div>
+    </nav>
+  </div>
+
+  <!-- EDIT DIALOG -->
+  <dialog id="edit-dialog">
+    <div class="dlg-head">
+      <strong>Edit expense</strong>
+      <button class="link" type="button" id="edit-close">Close</button>
+    </div>
+    <form class="dlg-body" id="edit-form" novalidate></form>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+// =====================================================================
+//  CONNECTION — your project's address and PUBLIC key.
+//  These are safe to be public. Your login + the security rules in
+//  Supabase are what protect the data. Never put a secret key here.
+// =====================================================================
+const SUPABASE_URL = 'https://hsnpaysphimxrmjdgsvv.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_Op2o3zL3JuCVVgGiqgC84g_z7YEaVFU';
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const COLS = 'id, amount, spent_on, category_id, payment_method, note, paid_by, created_at';
+const METHODS = ['UPI', 'Cash', 'Card', 'Bank transfer'];
+const PAGE = 40;
+
+const state = {
+  user: null,
+  members: [],
+  categories: [],
+  history: [],
+  historyDone: false,
+  historyLoaded: false,
+  report: null,       // { from, to, items, preset }
+  editing: null,      // expense being edited
+  tab: 'add',
+};
+
+// ---------- Small helpers ----------
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const money = (n) => inr.format(Number(n) || 0);
+const pad = (n) => String(n).padStart(2, '0');
+const toISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const today = () => toISO(new Date());
+const parseISO = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s, opts) => parseISO(s).toLocaleDateString('en-IN', opts || { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+const catName = (id) => (state.categories.find((c) => String(c.id) === String(id)) || {}).name || 'Unknown';
+const memberName = (id) => (state.members.find((m) => m.user_id === id) || {}).display_name || 'Unknown';
+
+let toastTimer;
+function toast(msg, isError) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.toggle('err', !!isError);
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), isError ? 4500 : 2500);
+}
+
+function friendly(error) {
+  if (!error) return 'Something went wrong.';
+  if (error.code === '23503') return 'This category is used by some expenses, so it can\'t be deleted. Rename it instead.';
+  if (error.code === '23505') return 'A category with that name already exists.';
+  if (error.code === '42501') return 'Not allowed. Try logging out and in again.';
+  if (/fetch|network/i.test(error.message || '')) return 'No internet connection. Please try again.';
+  return error.message || 'Something went wrong.';
+}
+
+// Supabase returns at most 1000 rows per request, so fetch in pages.
+async function fetchAll(makeQuery) {
+  const out = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await makeQuery().range(from, from + 999);
+    if (error) throw error;
+    out.push(...data);
+    if (data.length < 1000) break;
+  }
+  return out;
+}
+
+// =====================================================================
+//  LOGIN / LOGOUT
+// =====================================================================
+function showLogin(message) {
+  $('#boot').classList.add('hidden');
+  $('#app-view').classList.add('hidden');
+  $('#login-view').classList.remove('hidden');
+  const err = $('#login-error');
+  if (message) { err.textContent = message; err.classList.remove('hidden'); }
+  else err.classList.add('hidden');
+  state.user = null;
+  state.history = []; state.historyLoaded = false; state.report = null;
+}
+
+$('#login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = e.target.querySelector('button');
+  const email = $('#login-email').value.trim().toLowerCase();
+  const password = $('#login-password').value;
+  if (!email || !password) return showLogin('Please enter your email and password.');
+  btn.disabled = true; btn.textContent = 'Logging in…';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = 'Log in';
+  if (error) return showLogin('That email and password don\'t match. Please try again.');
+  $('#login-password').value = '';
+  await enterApp(data.user);
+});
+
+$('#logout-btn').addEventListener('click', async () => {
+  if (!confirm('Log out of Family Expenses on this device?')) return;
+  await sb.auth.signOut();
+  showLogin();
+});
+
+async function enterApp(user) {
+  state.user = user;
+  try {
+    await Promise.all([loadMembers(), loadCategories()]);
+  } catch (err) {
+    return showLogin(friendly(err));
+  }
+  // The guest-list check: if you're not a member, the database shows you nothing.
+  const me = state.members.find((m) => m.user_id === user.id);
+  if (!me) {
+    await sb.auth.signOut();
+    return showLogin('This account isn\'t on the family list.');
+  }
+  $('#who').textContent = me.display_name;
+  $('#account-line').textContent = `Logged in as ${me.display_name} (${user.email}).`;
+  renderAddForm();
+  renderSettings();
+  $('#boot').classList.add('hidden');
+  $('#login-view').classList.add('hidden');
+  $('#app-view').classList.remove('hidden');
+  switchTab('add');
+}
+
+async function loadMembers() {
+  const { data, error } = await sb.from('members').select('user_id, display_name').order('display_name');
+  if (error) throw error;
+  state.members = data;
+}
+
+async function loadCategories() {
+  const { data, error } = await sb.from('categories').select('id, name, sort_order').order('sort_order').order('name');
+  if (error) throw error;
+  state.categories = data;
+}
+
+// =====================================================================
+//  TABS
+// =====================================================================
+const TITLES = { add: 'Add expense', history: 'History', reports: 'Reports', settings: 'Settings' };
+
+document.querySelectorAll('nav.bottom button').forEach((b) =>
+  b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+function switchTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll('section.tab').forEach((s) => s.classList.toggle('hidden', s.id !== 'tab-' + tab));
+  document.querySelectorAll('nav.bottom button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  $('#page-title').textContent = TITLES[tab];
+  window.scrollTo(0, 0);
+  if (tab === 'history' && !state.historyLoaded) loadHistory(true);
+  if (tab === 'reports' && !state.report) setPreset('month');
+}
+
+// =====================================================================
+//  EXPENSE FORM (used for both "Add" and "Edit")
+// =====================================================================
+function expenseFormHTML(prefix, exp) {
+  const cat = exp ? String(exp.category_id) : '';
+  const method = exp ? exp.payment_method : 'UPI';
+  const payer = exp ? exp.paid_by : state.user.id;
+
+  const cats = state.categories.map((c) => `
+    <label class="chip"><input type="radio" name="${prefix}-cat" value="${c.id}" ${String(c.id) === cat ? 'checked' : ''}><span>${esc(c.name)}</span></label>`).join('');
+  const methods = METHODS.map((m) => `
+    <label class="seg-opt"><input type="radio" name="${prefix}-method" value="${m}" ${m === method ? 'checked' : ''}><span>${m === 'Bank transfer' ? 'Bank' : m}</span></label>`).join('');
+  const payers = state.members.map((m) => `
+    <label class="seg-opt"><input type="radio" name="${prefix}-payer" value="${m.user_id}" ${m.user_id === payer ? 'checked' : ''}><span>${esc(m.display_name)}</span></label>`).join('');
+
+  return `
+    <div class="field">
+      <label for="${prefix}-amount">Amount</label>
+      <div class="amount-wrap"><span>₹</span>
+        <input id="${prefix}-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="${exp ? Number(exp.amount) : ''}">
+      </div>
+    </div>
+    <div class="field"><span class="label">Category</span><div class="chips">${cats}</div></div>
+    <div class="field"><label for="${prefix}-date">Date</label><input type="date" id="${prefix}-date" value="${exp ? exp.spent_on : today()}"></div>
+    <div class="field"><span class="label">Paid with</span><div class="seg">${methods}</div></div>
+    <div class="field"><span class="label">Paid by</span><div class="seg">${payers}</div></div>
+    <div class="field">
+      <label for="${prefix}-note">Note <span class="opt">(optional)</span></label>
+      <input type="text" id="${prefix}-note" maxlength="200" placeholder="e.g. Vegetables from the market" value="${esc(exp ? exp.note || '' : '')}">
+    </div>`;
+}
+
+function readExpenseForm(form, prefix) {
+  const raw = form.querySelector(`#${prefix}-amount`).value.trim().replace(/[,₹\s]/g, '');
+  const amount = Math.round(Number(raw) * 100) / 100;
+  if (!raw || !isFinite(amount) || amount <= 0) throw new Error('Please enter an amount greater than 0.');
+  if (amount > 9999999999) throw new Error('That amount looks too large.');
+  const cat = form.querySelector(`input[name="${prefix}-cat"]:checked`);
+  if (!cat) throw new Error('Please choose a category.');
+  const date = form.querySelector(`#${prefix}-date`).value;
+  if (!date) throw new Error('Please choose a date.');
+  return {
+    amount,
+    category_id: Number(cat.value),
+    spent_on: date,
+    payment_method: form.querySelector(`input[name="${prefix}-method"]:checked`).value,
+    paid_by: form.querySelector(`input[name="${prefix}-payer"]:checked`).value,
+    note: form.querySelector(`#${prefix}-note`).value.trim() || null,
+  };
+}
+
+// ---------- ADD ----------
+function renderAddForm() {
+  $('#add-form').innerHTML = expenseFormHTML('add', null) +
+    `<button class="btn primary block" type="submit">Save expense</button>`;
+}
+
+$('#add-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  let row;
+  try { row = readExpenseForm(form, 'add'); } catch (err) { return toast(err.message, true); }
+  const btn = form.querySelector('button[type=submit]');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const { error } = await sb.from('expenses').insert(row);
+  btn.disabled = false; btn.textContent = 'Save expense';
+  if (error) return toast(friendly(error), true);
+  toast(`Saved ${money(row.amount)} · ${catName(row.category_id)}`);
+  // Clear the amount and note, keep the rest — handy when logging several in a row.
+  form.querySelector('#add-amount').value = '';
+  form.querySelector('#add-note').value = '';
+  form.querySelectorAll('input[name="add-cat"]').forEach((r) => (r.checked = false));
+  dataChanged();
+});
+
+// =====================================================================
+//  HISTORY
+// =====================================================================
+async function loadHistory(reset) {
+  if (reset) { state.history = []; state.historyDone = false; }
+  const from = state.history.length;
+  const { data, error } = await sb.from('expenses').select(COLS)
+    .order('spent_on', { ascending: false }).order('created_at', { ascending: false })
+    .range(from, from + PAGE - 1);
+  if (error) return toast(friendly(error), true);
+  state.history.push(...data);
+  state.historyDone = data.length < PAGE;
+  state.historyLoaded = true;
+  renderHistory();
+}
+
+function itemHTML(e) {
+  const meta = [memberName(e.paid_by), e.payment_method, e.note].filter(Boolean).map(esc).join(' · ');
+  return `<button class="item" data-id="${e.id}">
+      <span class="item-main"><span class="item-cat">${esc(catName(e.category_id))}</span><span class="item-meta">${meta}</span></span>
+      <span class="item-amt">${money(e.amount)}</span>
+    </button>`;
+}
+
+function groupedListHTML(items) {
+  const groups = [];
+  for (const e of items) {
+    const last = groups[groups.length - 1];
+    if (last && last.date === e.spent_on) last.items.push(e);
+    else groups.push({ date: e.spent_on, items: [e] });
+  }
+  return groups.map((g) => {
+    const total = g.items.reduce((s, e) => s + Number(e.amount), 0);
+    return `<div class="day-head"><span>${fmtDate(g.date)}</span><span>${money(total)}</span></div>
+      <div class="card list">${g.items.map(itemHTML).join('')}</div>`;
+  }).join('');
+}
+
+function renderHistory() {
+  $('#history-list').innerHTML = state.history.length
+    ? groupedListHTML(state.history)
+    : '<div class="empty">No expenses yet. Add your first one from the Add tab.</div>';
+  $('#history-more').classList.toggle('hidden', state.historyDone);
+}
+
+$('#history-more').addEventListener('click', () => loadHistory(false));
+
+// Tap any expense (in History or Reports) to edit it.
+document.addEventListener('click', (e) => {
+  const item = e.target.closest('.item[data-id]');
+  if (!item) return;
+  const id = item.dataset.id;
+  const exp = state.history.find((x) => x.id === id) || (state.report && state.report.items.find((x) => x.id === id));
+  if (exp) openEdit(exp);
+});
+
+// =====================================================================
+//  EDIT / DELETE
+// =====================================================================
+function openEdit(exp) {
+  state.editing = exp;
+  $('#edit-form').innerHTML = expenseFormHTML('edit', exp) + `
+    <div class="dlg-actions">
+      <button class="btn danger" type="button" id="edit-delete">Delete</button>
+      <button class="btn primary" type="submit">Save changes</button>
+    </div>`;
+  $('#edit-dialog').showModal();
+}
+
+$('#edit-close').addEventListener('click', () => $('#edit-dialog').close());
+
+$('#edit-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  let row;
+  try { row = readExpenseForm(e.target, 'edit'); } catch (err) { return toast(err.message, true); }
+  const { error } = await sb.from('expenses').update(row).eq('id', state.editing.id);
+  if (error) return toast(friendly(error), true);
+  $('#edit-dialog').close();
+  toast('Changes saved');
+  dataChanged();
+});
+
+$('#edit-form').addEventListener('click', async (e) => {
+  if (e.target.id !== 'edit-delete') return;
+  const exp = state.editing;
+  if (!confirm(`Delete this expense?\n\n${money(exp.amount)} · ${catName(exp.category_id)} · ${fmtDate(exp.spent_on)}\n\nThis can't be undone.`)) return;
+  const { error } = await sb.from('expenses').delete().eq('id', exp.id);
+  if (error) return toast(friendly(error), true);
+  $('#edit-dialog').close();
+  toast('Expense deleted');
+  dataChanged();
+});
+
+// After any change, refresh whatever has already been loaded.
+function dataChanged() {
+  if (state.historyLoaded) loadHistory(true);
+  if (state.report) runReport();
+}
+
+// =====================================================================
+//  REPORTS
+// =====================================================================
+function setPreset(p) {
+  const now = new Date();
+  let from, to;
+  if (p === 'week') {
+    const dow = (now.getDay() + 6) % 7; // Monday = 0
+    from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow);
+    to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 6);
+  } else if (p === 'month') {
+    from = new Date(now.getFullYear(), now.getMonth(), 1);
+    to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  } else if (p === 'lastmonth') {
+    from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    to = new Date(now.getFullYear(), now.getMonth(), 0);
+  } else {
+    from = new Date(now.getFullYear(), 0, 1);
+    to = new Date(now.getFullYear(), 11, 31);
+  }
+  $('#rep-from').value = toISO(from);
+  $('#rep-to').value = toISO(to);
+  markPreset(p);
+  runReport();
+}
+
+function markPreset(p) {
+  document.querySelectorAll('#presets .btn').forEach((b) => b.classList.toggle('on', b.dataset.preset === p));
+}
+
+document.querySelectorAll('#presets .btn').forEach((b) => b.addEventListener('click', () => setPreset(b.dataset.preset)));
+['#rep-from', '#rep-to'].forEach((s) => $(s).addEventListener('change', () => { markPreset(null); runReport(); }));
+
+async function runReport() {
+  const from = $('#rep-from').value, to = $('#rep-to').value;
+  const out = $('#report-out');
+  if (!from || !to) return;
+  if (from > to) { out.innerHTML = '<div class="empty">The "From" date must be before the "To" date.</div>'; return; }
+  out.innerHTML = '<div class="empty">Loading…</div>';
+  let items;
+  try {
+    items = await fetchAll(() => sb.from('expenses').select(COLS)
+      .gte('spent_on', from).lte('spent_on', to)
+      .order('spent_on', { ascending: false }).order('created_at', { ascending: false }));
+  } catch (err) {
+    out.innerHTML = ''; return toast(friendly(err), true);
+  }
+  state.report = { from, to, items };
+  renderReport();
+}
+
+function sumBy(items, keyFn) {
+  const m = new Map();
+  for (const e of items) { const k = keyFn(e); m.set(k, (m.get(k) || 0) + Number(e.amount)); }
+  return [...m.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+function barsHTML(entries, total) {
+  return `<div class="card">${entries.map(([label, amt]) => {
+    const pct = total ? (amt / total) * 100 : 0;
+    return `<div class="bar-row">
+        <div class="bar-top"><span>${esc(label)}</span><b>${money(amt)}<span class="pct">${pct.toFixed(0)}%</span></b></div>
+        <div class="bar"><i style="width:${pct.toFixed(1)}%"></i></div>
+      </div>`;
+  }).join('')}</div>`;
+}
+
+function renderReport() {
+  const { from, to, items } = state.report;
+  const out = $('#report-out');
+  const range = `${fmtDate(from, { day: 'numeric', month: 'short', year: 'numeric' })} – ${fmtDate(to, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  if (!items.length) { out.innerHTML = `<div class="empty">No expenses between ${range}.</div>`; return; }
+
+  const total = items.reduce((s, e) => s + Number(e.amount), 0);
+  const days = Math.round((parseISO(to) - parseISO(from)) / 86400000) + 1;
+
+  out.innerHTML = `
+    <div class="stats">
+      <div class="card stat big"><div class="k">Total spent · ${range}</div><div class="v">${money(total)}</div></div>
+      <div class="card stat"><div class="k">Expenses</div><div class="v">${items.length}</div></div>
+      <div class="card stat"><div class="k">Average per day</div><div class="v">${money(Math.round(total / days))}</div></div>
+    </div>
+    <div class="actions-row"><button class="btn" id="report-csv">Download this report (CSV)</button></div>
+
+    <h3>By category</h3>${barsHTML(sumBy(items, (e) => catName(e.category_id)), total)}
+    <h3>By person</h3>${barsHTML(sumBy(items, (e) => memberName(e.paid_by)), total)}
+    <h3>By payment method</h3>${barsHTML(sumBy(items, (e) => e.payment_method), total)}
+    <h3>All expenses in this period</h3>${groupedListHTML(items)}`;
+
+  $('#report-csv').addEventListener('click', () => downloadCSV(items, `expenses_${from}_to_${to}.csv`));
+}
+
+// =====================================================================
+//  CSV DOWNLOADS (opens in Excel / Google Sheets)
+// =====================================================================
+function csvCell(v) {
+  let s = String(v ?? '');
+  if (/^[=+\-@]/.test(s)) s = "'" + s; // stops spreadsheet apps treating text as a formula
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCSV(items, filename) {
+  const rows = [['Date', 'Amount (INR)', 'Category', 'Payment method', 'Paid by', 'Note']];
+  for (const e of [...items].sort((a, b) => a.spent_on.localeCompare(b.spent_on))) {
+    rows.push([e.spent_on, Number(e.amount).toFixed(2), catName(e.category_id), e.payment_method, memberName(e.paid_by), e.note || '']);
+  }
+  const csv = '\ufeff' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+$('#backup-btn').addEventListener('click', async (e) => {
+  const btn = e.target;
+  btn.disabled = true; btn.textContent = 'Preparing…';
+  try {
+    const all = await fetchAll(() => sb.from('expenses').select(COLS).order('spent_on').order('created_at'));
+    if (!all.length) toast('There are no expenses to back up yet.');
+    else { downloadCSV(all, `family-expenses-backup_${today()}.csv`); toast(`Downloaded ${all.length} expenses`); }
+  } catch (err) { toast(friendly(err), true); }
+  btn.disabled = false; btn.textContent = 'Download all expenses (CSV)';
+});
+
+// =====================================================================
+//  SETTINGS: categories + password
+// =====================================================================
+function renderSettings() {
+  $('#cat-list').innerHTML = state.categories.map((c) => `
+    <div class="cat-row"><span>${esc(c.name)}</span>
+      <span class="btns">
+        <button class="btn small" data-act="rename" data-id="${c.id}">Rename</button>
+        <button class="btn small danger" data-act="delete" data-id="${c.id}">Delete</button>
+      </span>
+    </div>`).join('') || '<div class="empty">No categories yet.</div>';
+}
+
+async function categoriesChanged() {
+  try { await loadCategories(); } catch (err) { return toast(friendly(err), true); }
+  renderSettings();
+  renderAddForm();
+  if (state.historyLoaded) renderHistory();
+  if (state.report) renderReport();
+}
+
+$('#cat-list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const id = Number(btn.dataset.id);
+  const current = catName(id);
+  if (btn.dataset.act === 'rename') {
+    const name = (prompt('Rename category', current) || '').trim();
+    if (!name || name === current) return;
+    const { error } = await sb.from('categories').update({ name }).eq('id', id);
+    if (error) return toast(friendly(error), true);
+    toast('Category renamed');
+  } else {
+    if (!confirm(`Delete the category "${current}"?`)) return;
+    const { error } = await sb.from('categories').delete().eq('id', id);
+    if (error) return toast(friendly(error), true);
+    toast('Category deleted');
+  }
+  categoriesChanged();
+});
+
+$('#cat-add-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = $('#cat-new');
+  const name = input.value.trim();
+  if (!name) return toast('Type a name for the new category.', true);
+  const { error } = await sb.from('categories').insert({ name, sort_order: 50 });
+  if (error) return toast(friendly(error), true);
+  input.value = '';
+  toast(`Added "${name}"`);
+  categoriesChanged();
+});
+
+$('#pw-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const p1 = $('#pw-1').value, p2 = $('#pw-2').value;
+  if (p1.length < 8) return toast('Use at least 8 characters.', true);
+  if (p1 !== p2) return toast('The two passwords don\'t match.', true);
+  const { error } = await sb.auth.updateUser({ password: p1 });
+  if (error) return toast(friendly(error), true);
+  $('#pw-1').value = ''; $('#pw-2').value = '';
+  toast('Password updated');
+});
+
+// =====================================================================
+//  START
+// =====================================================================
+sb.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_OUT' && state.user) showLogin('You\'ve been logged out.');
+});
+
+(async function start() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) await enterApp(session.user);
+  else showLogin();
+})();
+</script>
+</body>
+</html>
